@@ -1,0 +1,40 @@
+// File: prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String   // Nama HP
+  brand       String   // Merk (Samsung, iPhone, dll)
+  category    String   // Jenis Produk (HP, Aksesoris, dll)
+  image       String?  // Nama file gambar (boleh kosong di awal)
+  price       Decimal  @db.Decimal(15, 2)
+  stock       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("products")
+}
+
+model Transaction {
+  id                Int      @id @default(autoincrement())
+  customerName      String
+  items             String   @db.Text // Menyimpan daftar barang yang dibeli
+  totalAmount       Decimal  @db.Decimal(15, 2)
+  createdAt         DateTime @default(now())
+
+  @@map("transactions")
+}
+
+model User {
+  id       Int    @id @default(autoincrement())
+  username String @unique
+  password String
+}
