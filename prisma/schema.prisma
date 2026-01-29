@@ -10,17 +10,14 @@ datasource db {
 }
 
 model Product {
-  id          Int      @id @default(autoincrement())
-  name        String   // Nama HP
-  brand       String   // Merk (Samsung, iPhone, dll)
-  category    String   // Jenis Produk (HP, Aksesoris, dll)
-  image       String?  // Nama file gambar (boleh kosong di awal)
-  price       Decimal  @db.Decimal(15, 2)
-  stock       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("products")
+  id        Int      @id @default(autoincrement())
+  name      String
+  brand     String
+  category  String
+  price     Decimal
+  stock     Int
+  image     String?  @db.Text // Kita tambahkan @db.Text agar bisa simpan link panjang
+  createdAt DateTime @default(now())
 }
 
 model Transaction {

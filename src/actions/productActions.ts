@@ -3,35 +3,16 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { writeFile, unlink } from "fs/promises";
-import path from "path";
 
-// 1. FUNGSI TAMBAH PRODUK
+// 1. FUNGSI TAMBAH PRODUK (Menggunakan Link URL)
 export async function addProduct(formData: FormData) {
   const name = formData.get("name") as string;
   const brand = formData.get("brand") as string;
   const category = formData.get("category") as string;
   const price = parseFloat(formData.get("price") as string);
   const stock = parseInt(formData.get("stock") as string);
-  const file = formData.get("image") as File;
+  const imageUrl = formData.get("imageUrl") as string; // Mengambil link teks
 
-  let filename = "";
-
-  // Cek apakah ada file dan apakah kita TIDAK sedang di Vercel
-  // Vercel tidak mendukung penyimpanan file lokal (fs.writeFile)
-  if (file && file.size > 0 && process.env.NODE_ENV === "development") {
-    try {
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      filename = Date.now() + "_" + file.name.replaceAll(" ", "_");
-      const filePath = path.join(process.cwd(), "public/uploads/products", filename);
-      await writeFile(filePath, buffer);
-    } catch (error) {
-      console.error("Gagal simpan gambar di lokal:", error);
-    }
-  }
-
-  // Simpan data ke TiDB Cloud (Ini akan tetap jalan di Vercel!)
   await prisma.product.create({
     data: { 
       name, 
@@ -39,49 +20,24 @@ export async function addProduct(formData: FormData) {
       category, 
       price, 
       stock, 
-      image: filename // Akan kosong jika di Vercel, tapi tidak akan membuat error
+      image: imageUrl // Menyimpan URL gambar
     },
   });
 
   revalidatePath("/produk");
   revalidatePath("/");
+  revalidatePath("/kasir");
 }
 
-// Perbarui fungsi updateProduct di src/actions/productActions.ts
-
+// 2. FUNGSI EDIT PRODUK (Menggunakan Link URL)
 export async function updateProduct(id: number, formData: FormData) {
   const name = formData.get("name") as string;
   const brand = formData.get("brand") as string;
   const category = formData.get("category") as string;
   const price = parseFloat(formData.get("price") as string);
   const stock = parseInt(formData.get("stock") as string);
-  const file = formData.get("image") as File;
+  const imageUrl = formData.get("imageUrl") as string; // Mengambil link teks baru
 
-  // 1. Ambil data produk lama untuk cek gambar lama
-  const oldProduct = await prisma.product.findUnique({ where: { id } });
-  let filename = oldProduct?.image || "";
-
-  // 2. Jika ada file gambar baru yang diunggah
-  if (file && file.size > 0) {
-    // Hapus gambar lama jika ada
-    if (oldProduct?.image) {
-      try {
-        const oldFilePath = path.join(process.cwd(), "public/uploads/products", oldProduct.image);
-        await unlink(oldFilePath);
-      } catch (error) {
-        console.log("Gambar lama tidak ditemukan, abaikan.");
-      }
-    }
-
-    // Simpan gambar baru
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    filename = Date.now() + "_" + file.name.replaceAll(" ", "_");
-    const newFilePath = path.join(process.cwd(), "public/uploads/products", filename);
-    await writeFile(newFilePath, buffer);
-  }
-
-  // 3. Update data ke database
   await prisma.product.update({
     where: { id },
     data: { 
@@ -90,36 +46,25 @@ export async function updateProduct(id: number, formData: FormData) {
       category, 
       price, 
       stock,
-      image: filename // Bisa gambar lama atau gambar baru
+      image: imageUrl 
     },
   });
 
   revalidatePath("/produk");
   revalidatePath("/");
+  revalidatePath("/kasir");
 }
 
 // 3. FUNGSI HAPUS PRODUK
 export async function deleteProduct(id: number) {
-  const product = await prisma.product.findUnique({ where: { id } });
-  
-  if (product?.image) {
-    try {
-      const filePath = path.join(process.cwd(), "public/uploads/products", product.image);
-      await unlink(filePath);
-    } catch (error) { 
-      console.log("Gambar tidak ditemukan di folder, menghapus data dari database saja."); 
-    }
-  }
-
   await prisma.product.delete({ where: { id } });
-  
   revalidatePath("/produk"); 
   revalidatePath("/");
+  revalidatePath("/kasir");
 }
 
 // 4. FUNGSI TRANSAKSI KASIR
 export async function createTransaction(customerName: string, items: any[], totalAmount: number) {
-  // Simpan data transaksi ke tabel transactions
   await prisma.transaction.create({
     data: {
       customerName,
@@ -128,18 +73,16 @@ export async function createTransaction(customerName: string, items: any[], tota
     },
   });
 
-  // Loop untuk mengurangi stok setiap produk yang dibeli secara otomatis
   for (const item of items) {
     await prisma.product.update({
       where: { id: item.id },
       data: {
-        stock: {
-          decrement: item.quantity 
-        }
+        stock: { decrement: item.quantity }
       }
     });
   }
 
   revalidatePath("/produk");
   revalidatePath("/"); 
+  revalidatePath("/kasir");
 }
