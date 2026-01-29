@@ -16,14 +16,22 @@ export async function addProduct(formData: FormData) {
   const file = formData.get("image") as File;
 
   let filename = "";
-  if (file && file.size > 0) {
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    filename = Date.now() + "_" + file.name.replaceAll(" ", "_");
-    const filePath = path.join(process.cwd(), "public/uploads/products", filename);
-    await writeFile(filePath, buffer);
+
+  // Cek apakah ada file dan apakah kita TIDAK sedang di Vercel
+  // Vercel tidak mendukung penyimpanan file lokal (fs.writeFile)
+  if (file && file.size > 0 && process.env.NODE_ENV === "development") {
+    try {
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      filename = Date.now() + "_" + file.name.replaceAll(" ", "_");
+      const filePath = path.join(process.cwd(), "public/uploads/products", filename);
+      await writeFile(filePath, buffer);
+    } catch (error) {
+      console.error("Gagal simpan gambar di lokal:", error);
+    }
   }
 
+  // Simpan data ke TiDB Cloud (Ini akan tetap jalan di Vercel!)
   await prisma.product.create({
     data: { 
       name, 
@@ -31,7 +39,7 @@ export async function addProduct(formData: FormData) {
       category, 
       price, 
       stock, 
-      image: filename 
+      image: filename // Akan kosong jika di Vercel, tapi tidak akan membuat error
     },
   });
 
